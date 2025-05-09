@@ -7,7 +7,7 @@ import socket
 def control():
     # --- THÔNG SỐ MÔ HÌNH ---
     L = 0.43 * 100  # chiều dài cơ sở (mm)
-    dt = 0.05  # thời gian mẫu (s)
+    dt = 0.1  # thời gian mẫu (s)
     N = 20  # horizon
 
     # --- ĐẶT BÀI TOÁN CASADI ---
@@ -35,7 +35,7 @@ def control():
         opti.subject_to(X[:, k + 1] == x_next)
 
     opti.subject_to(X[:, 0] == x0)  # ràng buộc trạng thái ban đầu
-    opti.subject_to(opti.bounded(-0.6, U[0, :], 0.6))  # giới hạn tốc độ
+    opti.subject_to(opti.bounded(-0.3, U[0, :], 0.3))  # giới hạn tốc độ
     opti.subject_to(opti.bounded(-np.deg2rad(30), U[1, :], np.deg2rad(30)))  # giới hạn góc lái
 
     # --- RÀNG BUỘC DỪNG XE Ở CUỐI ---
@@ -98,7 +98,15 @@ def control():
 
         try:
             sol = opti.solve()
-            u_opt = sol.value(U[:, 0])
+            v_raw = sol.value(U[0, 0])
+            delta_opt = sol.value(U[1, 0])
+
+            # Làm tròn vận tốc v về gần nhất trong [0.3, 0.0, -0.3]
+            v_candidates = [0.3, 0.0, -0.3]
+            v_opt = min(v_candidates, key=lambda v: abs(v_raw - v))  # Chọn giá trị gần nhất
+
+            u_opt = np.array([v_opt, delta_opt])
+
         except RuntimeError:
             print(f"[❌] MPC lỗi tại bước {t}, dùng u = 0.")
             u_opt = np.array([0.0, 0.0])
@@ -129,6 +137,7 @@ def control():
     u_log = np.array(u_log)
 
     return x_log, u_log, xref_traj
+
 
 def main():
     x_log, u_log, xref_traj = control()
